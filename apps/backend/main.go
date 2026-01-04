@@ -98,6 +98,10 @@ func setupRouter(db *gorm.DB) *gin.Engine {
 func main() {
 	_ = godotenv.Load("/vault/secrets/config")
 
+	// --- ДОДАЛИ ПЕРЕВІРКУ ТУТ ---
+	apiKey := os.Getenv("API_KEY")
+	fmt.Printf("🔑 Loaded API_KEY: %s\n", apiKey)
+
 	host := "postgres-postgresql"
 	if os.Getenv("DB_HOST") != "" {
 		host = os.Getenv("DB_HOST")

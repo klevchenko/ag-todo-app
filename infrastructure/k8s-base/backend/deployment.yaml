@@ -29,12 +29,13 @@ spec:
           {{- with secret "secret/data/todo-app/config" -}}
           DB_USER={{ .Data.data.username }}
           DB_PASSWORD={{ .Data.data.password }}
+          API_KEY={{ .Data.data.API_KEY }}
           {{- end -}}
     spec:
       serviceAccountName: backend-sa
       containers:
       - name: backend
-        image: todo-backend:v3
+        image: todo-backend:v4
         imagePullPolicy: Never
         ports:
         - containerPort: 8080
