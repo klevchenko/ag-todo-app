@@ -30,12 +30,13 @@ spec:
           DB_USER={{ .Data.data.username }}
           DB_PASSWORD={{ .Data.data.password }}
           API_KEY={{ .Data.data.API_KEY }}
+          TEST_KEY={{ .Data.data.TEST_KEY }}
           {{- end -}}
     spec:
       serviceAccountName: backend-sa
       containers:
       - name: backend
-        image: todo-backend:v4
+        image: todo-backend:v5
         imagePullPolicy: Never
         ports:
         - containerPort: 8080

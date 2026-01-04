@@ -102,6 +102,9 @@ func main() {
 	apiKey := os.Getenv("API_KEY")
 	fmt.Printf("🔑 Loaded API_KEY: %s\n", apiKey)
 
+	testKey := os.Getenv("TEST_KEY")
+	fmt.Printf("🔑 Loaded TEST_KEY: %s\n", testKey)
+
 	host := "postgres-postgresql"
 	if os.Getenv("DB_HOST") != "" {
 		host = os.Getenv("DB_HOST")
