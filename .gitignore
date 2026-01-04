@@ -1,0 +1,20 @@
+# IDE
+.idea/
+.vscode/
+.DS_Store
+
+# Go
+apps/backend/server
+apps/backend/go.sum
+
+# Node / Frontend
+apps/frontend/node_modules/
+apps/frontend/dist/
+
+# Terraform / Vault stuff
+.terraform/
+*.tfstate
+*.tfstate.backup
+
+# Local secrets (якщо створював для тесту)
+*.env
