@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: backend-sa
+  namespace: todo-app   # <--- Важливо
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: todo-app   # <--- Важливо
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+      annotations:
+        # Тут нічого не змінюється. 
+        # Оскільки Vault Agent і сам Vault в одному неймспейсі,
+        # вони знайдуть один одного автоматично.
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "backend-role"
+        vault.hashicorp.com/agent-inject-secret-config: "secret/data/todo-app/config"
+        vault.hashicorp.com/agent-inject-template-config: |
+          {{- with secret "secret/data/todo-app/config" -}}
+          DB_USER={{ .Data.data.username }}
+          DB_PASSWORD={{ .Data.data.password }}
+          {{- end -}}
+    spec:
+      serviceAccountName: backend-sa
+      containers:
+      - name: backend
+        image: todo-backend:v3
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8080
