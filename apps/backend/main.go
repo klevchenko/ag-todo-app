@@ -12,124 +12,111 @@ import (
 )
 
 // --- MODELS ---
-
 type Task struct {
 	ID    uint   `gorm:"primaryKey" json:"id"`
-	Title string `json:"title" binding:"required"` // binding:"required" валідує вхідний JSON
+	Title string `json:"title" binding:"required"`
 	Done  bool   `json:"done"`
 }
 
-// --- GLOBAL DB ---
-var db *gorm.DB
+// --- SERVER STRUCT ---
+// Ми створюємо структуру, яка тримає підключення до бази.
+// Тепер наші методи будуть належати цій структурі.
+type Server struct {
+	DB *gorm.DB
+}
 
-// --- HANDLERS ---
+// --- HANDLERS (Methods of Server) ---
 
-// GET /tasks
-func getTasks(c *gin.Context) {
+// Зверни увагу: func (s *Server) ...
+// Тепер ми беремо базу не з глобальної змінної, а з s.DB
+func (s *Server) getTasks(c *gin.Context) {
 	var tasks []Task
-	// Знайти всі задачі
-	result := db.Find(&tasks)
-	if result.Error != nil {
+	if result := s.DB.Find(&tasks); result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, tasks)
 }
 
-// POST /tasks
-func createTask(c *gin.Context) {
+func (s *Server) createTask(c *gin.Context) {
 	var input Task
-	// Валідація JSON
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	// Створення в БД
 	task := Task{Title: input.Title, Done: false}
-	result := db.Create(&task)
-	if result.Error != nil {
+	if result := s.DB.Create(&task); result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
 		return
 	}
-
 	c.JSON(http.StatusCreated, task)
 }
 
-// PUT /tasks/:id
-func updateTask(c *gin.Context) {
+func (s *Server) updateTask(c *gin.Context) {
 	id := c.Param("id")
 	var task Task
-
-	// 1. Шукаємо задачу
-	if err := db.First(&task, id).Error; err != nil {
+	if err := s.DB.First(&task, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Task not found"})
 		return
 	}
-
-	// 2. Читаємо нові дані
 	var input Task
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	// 3. Оновлюємо
-	db.Model(&task).Updates(input)
+	s.DB.Model(&task).Updates(input)
 	c.JSON(http.StatusOK, task)
 }
 
-// DELETE /tasks/:id
-func deleteTask(c *gin.Context) {
+func (s *Server) deleteTask(c *gin.Context) {
 	id := c.Param("id")
-	if err := db.Delete(&Task{}, id).Error; err != nil {
+	if err := s.DB.Delete(&Task{}, id).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Task deleted"})
 }
 
-// --- MAIN ---
+// --- ROUTER SETUP ---
+// Ми винесли налаштування роутера в окрему функцію.
+// Це дозволить нам запускати API в тестах без реального запуску сервера.
+func setupRouter(db *gorm.DB) *gin.Engine {
+	server := &Server{DB: db} // Створюємо сервер з нашою базою
+	
+	r := gin.Default()
+	api := r.Group("/api/v1")
+	{
+		api.GET("/tasks", server.getTasks)
+		api.POST("/tasks", server.createTask)
+		api.PUT("/tasks/:id", server.updateTask)
+		api.DELETE("/tasks/:id", server.deleteTask)
+	}
+	return r
+}
 
+// --- MAIN ---
 func main() {
-	// 1. Config & Secret Loading
-	_ = godotenv.Load("/vault/secrets/config") // Ігноруємо помилку, якщо файлу немає (для локального тесту)
+	_ = godotenv.Load("/vault/secrets/config")
 
 	host := "postgres-postgresql"
-	// Якщо ми запускаємо локально (не в k8s), можна переозначити хост через ENV, наприклад localhost
 	if os.Getenv("DB_HOST") != "" {
 		host = os.Getenv("DB_HOST")
 	}
-	
+
 	dsn := fmt.Sprintf(
 		"host=%s user=%s password=%s dbname=postgres port=5432 sslmode=disable",
-		host,
-		os.Getenv("DB_USER"),
-		os.Getenv("DB_PASSWORD"),
+		host, os.Getenv("DB_USER"), os.Getenv("DB_PASSWORD"),
 	)
 
-	// 2. Database Connection
-	var err error
-	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		// У проді краще падати, якщо бази немає
 		panic("Failed to connect to database: " + err.Error())
 	}
 
-	// 3. Migration
 	db.AutoMigrate(&Task{})
 
-	// 4. Router Setup (Gin)
-	r := gin.Default()
-	
-	// Групуємо API версіювання - це Best Practice
-	api := r.Group("/api/v1")
-	{
-		api.GET("/tasks", getTasks)
-		api.POST("/tasks", createTask)
-		api.PUT("/tasks/:id", updateTask)
-		api.DELETE("/tasks/:id", deleteTask)
-	}
+	// Викликаємо нашу функцію налаштування
+	r := setupRouter(db)
 
 	fmt.Println("🚀 Server running on :8080")
 	r.Run(":8080")
